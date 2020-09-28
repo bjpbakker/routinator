@@ -263,7 +263,7 @@ impl<'a> Run<'a> {
             Some(ref http) => http,
             None => return Ok(None),
         };
-        let mut response = match http.response(uri) {
+        let mut response = match http.response(uri, None) {
             Ok(response) => response,
             Err(_) => return Ok(None),
         };
