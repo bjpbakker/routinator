@@ -189,7 +189,7 @@ impl HttpClient {
         &self,
         notify: &NotificationFile,
         path_op: F,
-        buf: &Vec<u8>,
+        buf: &[u8],
     ) -> Result<(), Error> {
         let mut processor = SnapshotProcessor { notify, path_op };
         let mut reader = io::BufReader::new(std::io::Cursor::new(&buf));
@@ -687,4 +687,3 @@ mod test {
         );
     }
 }
-
