@@ -52,7 +52,7 @@ impl HttpClient {
         Ok(())
     }
 
-    pub fn new(config: &Config) -> Result<Self, Error> {
+    pub fn new(config: &Config, permit_unsafe: bool) -> Result<Self, Error> {
         let mut builder = Client::builder();
         builder = builder.user_agent(&config.rrdp_user_agent);
         match config.rrdp_timeout {
@@ -64,8 +64,10 @@ impl HttpClient {
                 builder = builder.timeout(DEFAULT_TIMEOUT);
             }
         }
-        builder = builder.danger_accept_invalid_certs(true);
-        builder = builder.danger_accept_invalid_hostnames(true);
+        if permit_unsafe {
+            builder = builder.danger_accept_invalid_certs(true);
+            builder = builder.danger_accept_invalid_hostnames(true);
+        }
         if let Some(timeout) = config.rrdp_connect_timeout {
             builder = builder.connect_timeout(timeout);
         }
