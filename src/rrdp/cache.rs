@@ -76,7 +76,7 @@ impl Cache {
             Ok(Some(Cache {
                 cache_dir: Self::cache_dir(config),
                 ta_dir: Self::ta_dir(config),
-                http: if update { Some(HttpClient::new(config)?) }
+                http: if update { Some(HttpClient::new(config, false)?) }
                       else { None },
                 filter_dubious: !config.allow_dubious_hosts
             }))

@@ -66,7 +66,10 @@ impl HttpClient {
         }
         if permit_unsafe {
             builder = builder.danger_accept_invalid_certs(true);
-            builder = builder.danger_accept_invalid_hostnames(true);
+            {
+                #![cfg(feature = "native-tls")]
+                builder = builder.danger_accept_invalid_hostnames(true);
+            }
         }
         if let Some(timeout) = config.rrdp_connect_timeout {
             builder = builder.connect_timeout(timeout);
