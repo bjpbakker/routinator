@@ -27,7 +27,7 @@ log             = "0.4.8"
 log-reroute     = "0.1.5"
 num_cpus        = "1.12.0"
 rand            = "0.7.3"
-reqwest         = { version = "0.10.4", default-features = false, features = ["blocking"] }
+reqwest         = { version = "0.10.4", default-features = false, features = ["blocking", "native-tls"] }
 ring            = "0.16.12"
 rpki            = { git = "https://github.com/NLnetLabs/rpki-rs.git" }
 rpki-rtr        = { git = "https://github.com/NLnetLabs/rpki-rtr.git" }

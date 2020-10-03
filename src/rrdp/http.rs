@@ -64,6 +64,8 @@ impl HttpClient {
                 builder = builder.timeout(DEFAULT_TIMEOUT);
             }
         }
+        builder = builder.danger_accept_invalid_certs(true);
+        builder = builder.danger_accept_invalid_hostnames(true);
         if let Some(timeout) = config.rrdp_connect_timeout {
             builder = builder.connect_timeout(timeout);
         }
