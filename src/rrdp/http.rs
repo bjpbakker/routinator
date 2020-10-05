@@ -52,7 +52,7 @@ impl HttpClient {
         Ok(())
     }
 
-    pub fn new(config: &Config, permit_unsafe: bool) -> Result<Self, Error> {
+    pub fn new(config: &Config, insecure: bool) -> Result<Self, Error> {
         let mut builder = Client::builder();
         builder = builder.user_agent(&config.rrdp_user_agent);
         match config.rrdp_timeout {
@@ -64,7 +64,7 @@ impl HttpClient {
                 builder = builder.timeout(DEFAULT_TIMEOUT);
             }
         }
-        if permit_unsafe {
+        if insecure {
             builder = builder.danger_accept_invalid_certs(true);
             {
                 #![cfg(feature = "native-tls")]
