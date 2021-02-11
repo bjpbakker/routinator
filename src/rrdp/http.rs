@@ -3,7 +3,7 @@
 //! This is an internal module for organizational purposes.
 
 use std::{error, fmt, fs, io};
-use std::io::Write;
+use std::io::{Write, prelude::*};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use log::{error, warn};
@@ -52,7 +52,7 @@ impl HttpClient {
         Ok(())
     }
 
-    pub fn new(config: &Config) -> Result<Self, Error> {
+    pub fn new(config: &Config, insecure: bool) -> Result<Self, Error> {
         let mut builder = Client::builder();
         builder = builder.user_agent(&config.rrdp_user_agent);
         builder = builder.gzip(true);
@@ -63,6 +63,13 @@ impl HttpClient {
             Some(None) => { /* keep no timeout */ }
             None => {
                 builder = builder.timeout(DEFAULT_TIMEOUT);
+            }
+        }
+        if insecure {
+            builder = builder.danger_accept_invalid_certs(true);
+            {
+                #![cfg(feature = "native-tls")]
+                builder = builder.danger_accept_invalid_hostnames(true);
             }
         }
         if let Some(timeout) = config.rrdp_connect_timeout {
@@ -147,7 +154,7 @@ impl HttpClient {
             Error
         })
     }
- 
+
     pub fn tmp_dir(&self) -> &Path {
         &self.tmp_dir
     }
@@ -157,7 +164,7 @@ impl HttpClient {
         uri: &uri::Https,
         status: &mut Option<StatusCode>,
     ) -> Result<NotificationFile, Error> {
-        let response = match self.response(uri) {
+        let response = match self.response(uri, None) {
             Ok(response) => {
                 *status = Some(response.status());
                 response
@@ -186,19 +193,40 @@ impl HttpClient {
         }
     }
 
-    pub fn snapshot<F: Fn(&uri::Rsync) -> PathBuf>(
+    pub fn snapshot_from_buf<F: Fn(&uri::Rsync) -> PathBuf>(
         &self,
         notify: &NotificationFile,
-        path_op: F
+        path_op: F,
+        buf: &[u8],
     ) -> Result<(), Error> {
         let mut processor = SnapshotProcessor { notify, path_op };
-        let mut reader = io::BufReader::new(DigestRead::sha256(
-                self.response(notify.snapshot.uri())?
-        ));
+        let mut reader = io::BufReader::new(std::io::Cursor::new(&buf));
         if let Err(err) = processor.process(&mut reader) {
             warn!("RRDP {}: {}", notify.snapshot.uri(), err);
             return Err(Error)
         }
+        Ok(())
+    }
+
+    pub fn snapshot<F: Fn(&uri::Rsync) -> PathBuf>(
+        &self,
+        notify: &NotificationFile,
+        path_op: F
+    ) -> Result<Vec<u8>, Error> {
+        let mut reader = io::BufReader::new(DigestRead::sha256(
+            self.response(notify.snapshot.uri(), None)?));
+        let mut buf = Vec::<u8>::new();
+
+        if let Err(err) = reader.read_to_end(&mut buf) {
+            error!(
+                "Cannot read RRDP snapshot '{}': {}'",
+                notify.snapshot.uri(), err
+            );
+            return Err(Error);
+        }
+
+        self.snapshot_from_buf(notify, path_op, &buf)?;
+
         let digest = reader.into_inner().into_digest();
         if verify_slices_are_equal(
             digest.as_ref(),
@@ -207,7 +235,8 @@ impl HttpClient {
             warn!("RRDP {}: hash value mismatch.", notify.snapshot.uri());
             return Err(Error)
         }
-        Ok(())
+
+        Ok(buf)
     }
 
     pub fn delta<F: Fn(&uri::Rsync) -> PathBuf>(
@@ -222,7 +251,7 @@ impl HttpClient {
             server_uri, notify, delta, path_op, targets
         };
         let mut reader = io::BufReader::new(DigestRead::sha256(
-            self.response(delta.1.uri())?
+            self.response(delta.1.uri(), None)?
         ));
         if let Err(err) = processor.process(&mut reader) {
             if let ProcessError::Xml(err) = err {
@@ -243,9 +272,16 @@ impl HttpClient {
 
     pub fn response(
         &self,
-        uri: &uri::Https
+        uri: &uri::Https,
+        etag: Option<String>,
     ) -> Result<Response, Error> {
-        self.client().get(uri.as_str()).send().map_err(|err| {
+        let mut request_builder = self.client().get(uri.as_str());
+        if let Some(etag) = etag {
+            request_builder = request_builder.header("If-None-Match", etag);
+        }
+        request_builder.send().and_then(|res| {
+            res.error_for_status()
+        }).map_err(|err| {
             warn!("RRDP {}: {}", uri, err);
             Error
         })
@@ -570,7 +606,7 @@ impl DeltaTargets {
         Some(target_path)
     }
 }
-    
+
 
 //============ Errors ========================================================
 
@@ -659,4 +695,3 @@ mod test {
         );
     }
 }
-
